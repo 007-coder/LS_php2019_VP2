@@ -125,11 +125,12 @@ class Application
     } 
   }
 
-  protected function redirect($where, $code = '')
+  protected function redirect($where, $statusCode = '303')
   {
-    // url@ route@ name@
-    header('Location: ' . $url);
-    exit;
+    header('Location: ' . $url, true, $statusCode);
+
+    exit();
+    // url@ route@ name@    
   }
 
   protected function setViewData($data)
@@ -172,7 +173,7 @@ class Application
       $this->viewData['styles'] = [
         'relative' => [
           'bootstrap.min.css',
-          'style.css'
+          'styles.css'
         ],
         'absolute' => []        
       ];
@@ -194,11 +195,10 @@ class Application
       ];
       $this->viewData['scripts'] = [
         'relative' => [
+          'jquery-slim.min.js',
           'bootstrap.bundle.min.js'
         ],
-        'absolute' => [
-          'https://code.jquery.com/jquery-3.3.1.slim.min.js'
-        ]
+        'absolute' => []
       ];
       $this->viewData['scriptsInline'] = [];
       $this->viewData['message'] = [
