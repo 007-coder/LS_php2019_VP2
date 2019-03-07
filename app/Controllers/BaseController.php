@@ -29,13 +29,21 @@ class BaseController extends Application
 
   protected function login()
   { 
-    if (isset($_POST) && count($_POST) && !$this->user['id']) {
+    if ($this->user['id']) {
+      $this->redirect('name:userAccaunt');
+    } else {
+      if (isset($_POST) && count($_POST)) {
 
-    } else if (!isset($_POST) && $this->user['id']) {
-      $this->redirect('', 'name:userAccaunt');
-    } else if (!$this->user['id']) {
-      $this->render('login');
+        wrap_pre($_POST, '$_POST');
+        $data['meta']['title'] = $this->l10n->_t('PAGE_TITLE_LOGIN_REGISTER');
+        $this->render('login',$data);
+
+      } else {
+        $data['meta']['title'] = $this->l10n->_t('PAGE_TITLE_LOGIN_REGISTER');
+        $this->render('login',$data);
+      }
     }
+    
   }
 
   protected function home()

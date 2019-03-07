@@ -1,11 +1,23 @@
 <?php 
+/*
+  Created by Vakulenko Yuri at 31 years old age 
+  Inspirited by my crazy mind while listening 
+  Liszt - Après une lecture du Dante - Fantasia quasi sonata, S161/7
+  https://www.youtube.com/watch?v=_PrsflaFB58
+  https://www.youtube.com/watch?v=Q7JbSQvTqB8
+*/
+
 class Application 
 { 
   protected       $config; 
   protected       $db;
   protected       $router;
+  protected       $validator;
   protected       $viewData= [];
-  protected       $i10n;
+  protected       $l10n;
+  protected       $interfaceLang;
+  protected       $availableLangs;
+  protected       $area = 'site'; // site|admin (for Langs Loading)
   protected       $user = [
                     'id' => 0,
                     'data' => []
@@ -23,14 +35,22 @@ class Application
     $this->router = new Router($routerFile);
 
     $this->session();
+
+    $this->interfaceLang = $_SESSION['interfaceLang'];
+    $this->availableLangs = $_SESSION['availableLangs'];
+    $this->loadInterfaceLang($this->interfaceLang);
+
     $this->db();
+    $this->validator = new GUMP();
   }
 
   public function runApp() 
   {   
     $routeData = $this->router->start();
-    $method = $routeData['method'];
+   
+    $this->area = $this->router->getRouteArea();
 
+    $method = $routeData['method'];    
     if ($routeData['controller'] == 'BaseController') {
       $this->getController()->$method();
     } else {
@@ -77,7 +97,8 @@ class Application
   {
     require_once(LIB_DIR.DS.'functions.php');
     require_once(LIB_DIR.DS.'AppConfig.php');
-    require_once(LIB_DIR.DS.'Router.php');  
+    require_once(LIB_DIR.DS.'Router.php'); 
+    require_once(LIB_DIR.DS.'gump'.DS.'gump.class.php');  
     require_once(CONTROLLERS_DIR.DS.'BaseController.php'); 
     require_once(MODELS_DIR.DS.'BaseModel.php');    
   }
@@ -105,10 +126,24 @@ class Application
     }
 
     // SESSION Language setup
-
-
+    if (!isset($_SESSION['interfaceLang'])){
+      $_SESSION['interfaceLang'] = $this->getDefaultLang($this->area); 
+    }
+     if (!isset($_SESSION['availableLangs'])){
+      $_SESSION['availableLangs'] = $this->getAvailableLangs($this->area);
+    }
 
   }
+
+  protected function loadInterfaceLang($lang)
+  { 
+    require_once(LANG_DIR . DS . 'L10n.php');
+    $templates = $this->getConfig('templates');
+    $templateArea = (isset($templates[$this->area])) ? $templates[$this->area] : 'default'; 
+
+    $this->l10n = new l10n($this->interfaceLang, $this->area, $templateArea);
+  } 
+  
 
   protected function db() 
   { 
@@ -133,8 +168,55 @@ class Application
     // url@ route@ name@    
   }
 
-  protected function setViewData($data)
-  {
+  protected function getDefaultLang($area = 'site')
+  { 
+    $languages = $this->getConfig('languages');
+    return $languages[$area]['default'];
+  }
+
+  protected function getAvailableLangs($area = 'site')
+  { 
+    $languages = $this->getConfig('languages');
+    return $languages[$area]['availableLangs'];
+  }  
+
+  protected function validate($data, $params) {
+    $return  = [
+      'allValid'=>false,
+      'errors'=>[
+        'values'=>[],
+        'valid'=>[]
+      ],
+      'validatedData'=>[]
+    ];
+
+    $validationRules = $params['validationRules'];
+    $filterRules = $params['filterRules'];
+
+    $this->validator->validation_rules($validationRules); 
+    $this->validator->filter_rules($filterRules);
+    $validatedData = $this->validator->run($data);  
+
+    // Валидация провалена
+    if($validatedData === false)
+    { 
+      $return['errors']['values'] = $this->validator->get_errors_array();     
+      $valid_data = [];
+
+      foreach ($data as $kp => $_val)
+      {       
+        $return['errors']['valid'][$kp] = (!array_key_exists($kp, $return['errors']['values'])) ? $_val : '';         
+      }
+    } 
+    //Валидация успешна
+    else 
+    {
+        $return['allValid'] = true;
+        $return['validatedData'] = $validatedData;
+    }
+
+
+    return $return;
 
   }
 
@@ -154,16 +236,18 @@ class Application
       // ----------------------
     if ($ajax === false) {     
       $templates = $this->getConfig('templates');
-      $templateArea = (isset($templates[$area])) ? $templates[$area] : 'default';  
+      $templateArea = (isset($templates[$area])) ? $templates[$area] : 'default';
 
       $this->viewData['htmlLang'] = 'ru';
       $this->viewData['htmlCharset'] = 'utf-8';
       $this->viewData['meta'] = [
-        'title' => '',
+        'title' => $this->l10n->_t('PAGE_TITLE_HOMEPAGE'),
         'description' => '',
         'keywords' => '',
         'author' => 'Vakulenko Yura | vakulenkoyura211@gmail.com | https://t.me/yura_v_007',
       ];    
+      // VIEW assets setup start 
+      // ---------------------------
       $this->viewData['assetsPathes'] = [
         'css' => BASE_URI.'/assets/' . $area . '/' . $templateArea . '/css/',
         'js' => BASE_URI.'/assets/' . $area . '/' . $templateArea . '/js/',
@@ -173,7 +257,8 @@ class Application
       $this->viewData['styles'] = [
         'relative' => [
           'bootstrap.min.css',
-          'styles.css'
+          'styles.css',
+          'stylesOverride.css'
         ],
         'absolute' => []        
       ];
@@ -200,11 +285,16 @@ class Application
         ],
         'absolute' => []
       ];
-      $this->viewData['scriptsInline'] = [];
+      $this->viewData['scriptsInline'] = [];      
+      // ---------------------------
+
+      $this->viewData['l10n'] = $this->l10n->getAllStrings();
+      $this->viewData['router'] = $this->router;
       $this->viewData['message'] = [
         'type'=>'', // error | ok
         'text'=>''
       ];
+      $this->viewData['formErrors'] = [];
       $this->viewData['page'] = ($page !='') ? $page : 'homepage';
       $this->viewData['templateDir'] = self::TEMPLATE_DIR . DS . $area . DS . $templateArea;
       // ----------------------

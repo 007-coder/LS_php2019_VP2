@@ -2,6 +2,7 @@
 class Router {
 
   protected $routes;
+  protected $currentRoute = [];
 
   public function __construct($routesFile = '')
   {
@@ -10,6 +11,7 @@ class Router {
     } else {
       $this->routes = require_once(APP_DIR . DS . 'routes.php');
     }
+    $this->currentRoute = [];
   }
 
 
@@ -19,7 +21,8 @@ class Router {
       'controller'=>null,
       'method'=>null,
       'name'=>null,
-      'route' => null
+      'route' => null,
+      'area' => null
     ];
 
     if (empty($route)) {
@@ -35,22 +38,27 @@ class Router {
       $result['method'] = $routeDataController[1];
       $result['name'] = isset($routeData['name']) ? $routeData['name'] : '';
       $result['route'] = $reqURI;
+      $result['area'] = isset($routeData['area']) ? $routeData['area'] : 'site';
     } else {
       if ($reqURI == '/index.php') {
         $result['controller'] = 'BaseController';
         $result['method'] = 'home';
         $result['name'] = 'homepage';
         $result['route'] = '/index.php';
+        $result['area'] = 'site';
       } else {
         $result['controller'] = 'BaseController';
         $result['method'] = 'Page404';
         $result['name'] = '404';
         $result['route'] = '/404';  
+        $result['area'] = 'site';
       }
       
-    }    
+    }  
 
-    return $result;
+    $this->currentRoute = $result;
+
+    return $this->currentRoute;
   }
 
   public function getNamedRoute($routeName)
@@ -59,7 +67,8 @@ class Router {
       'controller'=>null,
       'method'=>null,
       'name'=>null,
-      'route' => null
+      'route' => null,
+      'area' => null
     ];
     
     $routeFound = '';   
@@ -68,8 +77,17 @@ class Router {
         $routeFound = $route;
       } 
     }
+    if (empty($routeFound)){
+      $this->currentRoute = $result;
+      return $this->currentRoute;
+    } else {
+      return $this->start($routeFound);
+    }
+        
+  }
 
-    return (empty($routeFound)) ? $result : $this->start($routeFound);
+  public function getRouteArea(){
+    return $this->currentRoute['area'];
   }
 
 }

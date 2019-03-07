@@ -3,31 +3,38 @@ return [
 
   '/'=> [
     'controller' => 'BaseController@home',
-    'name' => 'homepage'
+    'name' => 'homepage',
+    'area' => 'site'
   ],
   '/login'=> [
     'controller' => 'BaseController@login',
-    'name' => 'login'
+    'name' => 'login',
+    'area' => 'site'
   ],
   '/register'=> [
     'controller' => 'BaseController@register',
-    'name' => 'register'
+    'name' => 'register',
+    'area' => 'site'
   ],
   '/logout'=> [
     'controller' => 'BaseController@logout',
-    'name' => 'logout'
+    'name' => 'logout',
+    'area' => 'site'
   ],
   '/user'=> [
     'controller' => 'UserController@home',
-    'name' => 'userAccaunt'
+    'name' => 'userAccaunt',
+    'area' => 'site'
   ],
   '/ajax'=> [
     'controller' => 'AjaxController@start',
-    'name' => 'ajax'
+    'name' => 'ajax',
+    'area' => 'site'
   ],
   '/404'=> [
     'controller' => 'BaseController@Page404',
-    'name' => '404'
+    'name' => '404',
+    'area' => 'site'
   ],
 
 

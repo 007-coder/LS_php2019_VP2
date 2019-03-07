@@ -1,5 +1,6 @@
 <?php 
 $layoutsDir = $tmplData['templateDir'] .DS .'layouts';
+$l10n = $tmplData['l10n'];
 ?>
 <!doctype html>
 <html lang="<?php echo $tmplData['htmlLang'] ?>">
@@ -11,6 +12,10 @@ $layoutsDir = $tmplData['templateDir'] .DS .'layouts';
     <?php
     require_once ($layoutsDir . DS . 'header.php');
 
+    if (!empty($tmplData['message']['text'])) {
+      require_once ($layoutsDir . DS . 'message.php');
+    }
+
     if (empty($tmplData['page']) || $tmplData['page'] == 'homepage' ) {
       require_once ($layoutsDir . DS . 'homepage.php');
     } else {
@@ -20,7 +25,6 @@ $layoutsDir = $tmplData['templateDir'] .DS .'layouts';
     require_once ($layoutsDir . DS . 'footer.php'); 
 
     require_once ($layoutsDir . DS . 'bottomScripts.php'); ?>
-
     
     </body>
    

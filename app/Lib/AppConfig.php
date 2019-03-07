@@ -13,8 +13,17 @@ class AppConfig {
       'user'=>'root',
       'password'=>'vertrigo',
       'charset' => 'UTF-8'        
-    ]
-      
+    ],
+    'languages' => [
+      'site'=> [
+        'default' => 'ru_RU',
+        'availableLangs' => ['ru_RU','en_EN']
+      ],
+      'admin' => [
+        'default' => 'ru_RU',
+        'availableLangs' => ['ru_RU','en_EN']
+      ]
+    ]      
   ];
  
 
