@@ -1,3 +1,9 @@
+<?php 
+/*if (isset($tmplData['formValidationResults'])) {
+  wrap_pre($tmplData['formValidationResults'], '$tmplData[\'formValidationResults\']');
+  
+}*/ ?>
+
 <div class="page-wrap login">
   <div class="container login-container">
     <div class="row">

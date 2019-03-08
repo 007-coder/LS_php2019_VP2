@@ -9,3 +9,13 @@ function get_actual_url() {
 
   return $actual_url;
 }
+
+function getLangCodeISO($lang) {
+  $explLang = explode('_', $lang);
+  return $explLang[0];
+}
+
+function buildPasswordHash($password) {
+  $options = ['cost' => 11];     
+  return password_hash($password, PASSWORD_BCRYPT, $options);
+}

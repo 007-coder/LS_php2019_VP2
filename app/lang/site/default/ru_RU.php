@@ -8,6 +8,12 @@ $this->l10n = [
   'NAV_LOGIN' => 'Логин',
   'NAV_CABINET' => 'Кабинет',
 
+  // RORMS
+  'FORM_WRONG_SUBMITED_DATA' => 'Введенные Вами данные не корректны.',
+
+  // LOGIN page
+  'USER_NOT_EXISTS' => 'Не верные логин и\или пароль.',
+
 
   //404 page
   'PAGE_404_DESCR_TEXT' => 'К сожелению, страница которую Вы ищите, не найдена.',

@@ -4,6 +4,10 @@
 		"selected_items":
 		[
 			[
+				"passw",
+				"password_hash"
+			],
+			[
 				"filter",
 				"filter_var"
 			],
@@ -20,13 +24,10 @@
 	"buffers":
 	[
 		{
-			"contents": "<?php \n/*\n  Created by Vakulenko Yuri at 31 years old age \n  Inspirited by my crazy mind while listening \n  Liszt - Après une lecture du Dante - Fantasia quasi sonata, S161/7\n  https://www.youtube.com/watch?v=_PrsflaFB58\n  https://www.youtube.com/watch?v=Q7JbSQvTqB8\n*/\n\nclass Application \n{ \n  protected       $config; \n  protected       $db;\n  protected       $router;\n  protected       $viewData= [];\n  protected       $l10n;\n  protected       $interfaceLang;\n  protected       $availableLangs;\n  protected       $area = 'site'; // site|admin (for Langs Loading)\n  protected       $user = [\n                    'id' => 0,\n                    'data' => []\n                  ];\n  protected const TEMPLATE_DIR = APP_DIR . DS . 'Views';  \n\n\n  public function __construct() \n  {\n    $this->loader();\n    $this->config = new AppConfig();    \n\n    // путь к файлу с роутами. По умолчан APP_DIR.DS.'routes.php'\n    $routerFile = ''; \n    $this->router = new Router($routerFile);\n\n    $this->session();\n\n    $this->interfaceLang = $_SESSION['interfaceLang'];\n    $this->availableLangs = $_SESSION['availableLangs'];\n    $this->loadInterfaceLang($this->interfaceLang);\n\n    $this->db();\n  }\n\n  public function runApp() \n  {   \n    $routeData = $this->router->start();\n   \n    $this->area = $this->router->getRouteArea();\n\n    $method = $routeData['method'];    \n    if ($routeData['controller'] == 'BaseController') {\n      $this->getController()->$method();\n    } else {\n      $controller = str_replace('Controller', '', $routeData['controller']);     \n      $this->getController($controller)->$method();\n    }\n\n  }\n\n  protected function getConfig($area = '')\n  {\n    return $this->config->getConfig($area);\n  }\n\n  protected function getController($controller = '')\n  {\n    if (empty($controller)) {\n      $_controller = new BaseController();\n    } else {\n      $controller = ucfirst($controller);\n      require_once(CONTROLLERS_DIR.DS.$controller.'Controller.php');\n      $controllerClass = $controller.'Controller';      \n      $_controller = new $controllerClass($controller);\n    }    \n\n    return $_controller;\n  }\n\n  protected function getModel($model = '')\n  {    \n    if (empty($model)) {\n      $_model = new BaseModel();\n    } else {\n      $model = ucfirst($model);\n      require_once(MODELS_DIR.DS.$model.'Model.php');\n      $modelClass = $model.'Model';      \n      $_model = new $modelClass($model);\n    }\n\n    return $_model;\n  }\n\n  protected function loader() \n  {\n    require_once(LIB_DIR.DS.'functions.php');\n    require_once(LIB_DIR.DS.'AppConfig.php');\n    require_once(LIB_DIR.DS.'Router.php');  \n    require_once(CONTROLLERS_DIR.DS.'BaseController.php'); \n    require_once(MODELS_DIR.DS.'BaseModel.php');    \n  }\n\n  protected function session() \n  {\n    if (session_status() == PHP_SESSION_NONE) {\n      session_start();\n    }\n\n    // SESSION User setup\n    if (isset($_SESSION['user'])){\n      if ($_SESSION['user']['id']) {\n        $this->user['id'] = ($this->user['id']) ? $this->user['id'] : $_SESSION['user']['id'];\n\n        if (empty($this->user['data'])) {\n          $this->user['data'] = (count($_SESSION['user']['data'])) ? $_SESSION['user']['data'] : $this->getModel()->getUserData($this->user['id']);  \n        }        \n      }\n    } else {\n      $_SESSION['user'] = [\n        'id' => 0,\n        'data' => []\n      ];      \n    }\n\n    // SESSION Language setup\n    if (!isset($_SESSION['interfaceLang'])){\n      $_SESSION['interfaceLang'] = $this->getDefaultLang($this->area); \n    }\n     if (!isset($_SESSION['availableLangs'])){\n      $_SESSION['availableLangs'] = $this->getAvailableLangs($this->area);\n    }\n\n  }\n\n  protected function loadInterfaceLang($lang)\n  { \n    require_once(LANG_DIR . DS . 'L10n.php');\n    $templates = $this->getConfig('templates');\n    $templateArea = (isset($templates[$this->area])) ? $templates[$this->area] : 'default'; \n\n    $this->l10n = new l10n($this->interfaceLang, $this->area, $templateArea);\n  } \n  \n\n  protected function db() \n  { \n    $dbConfig = $this->getConfig('database');\n    try {\n        $this->db = new PDO(\n          'mysql:dbname=' . $dbConfig['dbname'] .\n          ';host=' . $dbConfig['host'],\n          $dbConfig['user'],\n          $dbConfig['password']\n        );        \n    } catch (PDOException $e) {\n        echo 'Подключение к БД не удалось: ' . $e->getMessage();\n    } \n  }\n\n  protected function redirect($where, $statusCode = '303')\n  {\n    header('Location: ' . $url, true, $statusCode);\n\n    exit();\n    // url@ route@ name@    \n  }\n\n  protected function getDefaultLang($area = 'site')\n  { \n    $languages = $this->getConfig('languages');\n    return $languages[$area]['default'];\n  }\n\n  protected function getAvailableLangs($area = 'site')\n  { \n    $languages = $this->getConfig('languages');\n    return $languages[$area]['availableLangs'];\n  }  \n\n  protected function render($page, $data = [], $ajax = false, $area = 'site') \n  {\n    $ajax = filter_var($ajax, FILTER_VALIDATE_BOOLEAN);\n    $templateArea = '';    \n    if (!in_array($area, ['site', 'admin'])) {\n      throw RuntimeException(\n        'Application::render() - unvalid Views area <b>'.$area.'\n        </b>. Use only \"site\" or \"admin\" for $area method\n        argument.'\n      );\n    }    \n\n    // данные по умолчанию для шаблона \n      // ----------------------\n    if ($ajax === false) {     \n      $templates = $this->getConfig('templates');\n      $templateArea = (isset($templates[$area])) ? $templates[$area] : 'default';\n\n      $this->viewData['htmlLang'] = 'ru';\n      $this->viewData['htmlCharset'] = 'utf-8';\n      $this->viewData['meta'] = [\n        'title' => $this->l10n->_t('PAGE_TITLE_HOMEPAGE'),\n        'description' => '',\n        'keywords' => '',\n        'author' => 'Vakulenko Yura | vakulenkoyura211@gmail.com | https://t.me/yura_v_007',\n      ];    \n      // VIEW assets setup start \n      // ---------------------------\n      $this->viewData['assetsPathes'] = [\n        'css' => BASE_URI.'/assets/' . $area . '/' . $templateArea . '/css/',\n        'js' => BASE_URI.'/assets/' . $area . '/' . $templateArea . '/js/',\n        'img' => BASE_URI.'/assets/' . $area . '/' . $templateArea . '/img/',\n        'fonts' => BASE_URI.'/assets/' . $area . '/' . $templateArea . '/fonts/',\n      ];   \n      $this->viewData['styles'] = [\n        'relative' => [\n          'bootstrap.min.css',\n          'styles.css',\n          'stylesOverride.css'\n        ],\n        'absolute' => []        \n      ];\n      $this->viewData['stylesInline'] = [\n        '.bd-placeholder-img {\n        font-size: 1.125rem;\n        text-anchor: middle;\n        -webkit-user-select: none;\n        -moz-user-select: none;\n        -ms-user-select: none;\n        user-select: none;\n      }\n\n      @media (min-width: 768px) {\n        .bd-placeholder-img-lg {\n          font-size: 3.5rem;\n        }\n      }'\n      ];\n      $this->viewData['scripts'] = [\n        'relative' => [\n          'jquery-slim.min.js',\n          'bootstrap.bundle.min.js'\n        ],\n        'absolute' => []\n      ];\n      $this->viewData['scriptsInline'] = [];      \n      // ---------------------------\n\n      $this->viewData['l10n'] = $this->l10n->getAllStrings();\n      $this->viewData['router'] = $this->router;\n      $this->viewData['message'] = [\n        'type'=>'', // error | ok\n        'text'=>''\n      ];\n      $this->viewData['page'] = ($page !='') ? $page : 'homepage';\n      $this->viewData['templateDir'] = self::TEMPLATE_DIR . DS . $area . DS . $templateArea;\n      // ----------------------\n\n      if (count($data)) {\n        $this->viewData = array_replace_recursive($this->viewData, $data);  \n      }\n\n      //wrap_pre($_SESSION, '$_SESSION');\n      \n    }\n\n    $tmplData = ($ajax) ? json_encode($data) : $this->viewData;\n    $path = ($ajax) ? self::TEMPLATE_DIR . DS . 'ajax.php' : self::TEMPLATE_DIR . DS . $area . DS . $templateArea . DS . 'start.php';\n    if (!file_exists($path)) {\n        throw RuntimeException(\n          'Application::render() - file '.$path.' not exists.'\n        );\n    }\n    //extract($data);\n    include $path;\n  }\n\n}",
 			"file": "app/Lib/Application.php",
-			"file_size": 8385,
-			"file_write_time": 131963705334329216,
 			"settings":
 			{
-				"buffer_size": 8078,
+				"buffer_size": 10047,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
@@ -35,7 +36,25 @@
 			"file": "app/Controllers/BaseController.php",
 			"settings":
 			{
-				"buffer_size": 943,
+				"buffer_size": 3345,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "app/Models/BaseModel.php",
+			"settings":
+			{
+				"buffer_size": 559,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP1/models.php",
+			"settings":
+			{
+				"buffer_size": 2456,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
@@ -53,16 +72,28 @@
 			"file": "app/Views/site/default/start.php",
 			"settings":
 			{
-				"buffer_size": 653,
+				"buffer_size": 762,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
 		},
 		{
+			"contents": "<?php \nif (isset($tmplData['formValidationResults'])) {\n  wrap_pre($tmplData['formValidationResults'], '$tmplData[\\'formValidationResults\\']');\n  \n} ?>\n\n<div class=\"page-wrap login\">\n  <div class=\"container login-container\">\n    <div class=\"row\">\n      <div class=\"col-md-6 login-form-1\">\n        <h3><?php echo $l10n['PAGE_LOGREGISTER_LOGIN'] ?></h3>\n        <form action=\"<?php echo BASE_URI.'/index.php/login'?>\" method=\"post\">\n          <div class=\"form-group\">\n              <input type=\"text\" name=\"email\" class=\"form-control\" placeholder=\"Your Email *\" value=\"\" required />\n          </div>\n          <div class=\"form-group\">\n              <input type=\"password\" name=\"password\" class=\"form-control\" placeholder=\"Your Password *\" value=\"\" required />\n          </div>\n          <div class=\"form-group\">\n              <input type=\"submit\" class=\"btnSubmit\" value=\"Login\" />\n          </div>\n          <input type=\"hidden\" name=\"formName\" value=\"login\">           \n        </form>\n      </div>\n      <div class=\"col-md-6 login-form-2\">\n        <h3><?php echo $l10n['PAGE_LOGREGISTER_REGISTER'] ?></h3>\n        <form action=\"<?php echo BASE_URI.'/index.php/register'?>\" method=\"post\">\n          <div class=\"form-group\">\n              <input type=\"text\" name=\"email\" class=\"form-control\" placeholder=\"Your Email *\" value=\"\" required />\n          </div>\n          <div class=\"form-group\">\n              <input type=\"password\" name=\"password\" class=\"form-control\" placeholder=\"Your Password *\" value=\"\" required />\n          </div>\n          <div class=\"form-group\">\n              <input type=\"text\" name=\"age\" class=\"form-control\" placeholder=\"Your Age *\" value=\"\" required />\n          </div>\n          <div class=\"form-group\">\n              <input type=\"submit\" class=\"btnSubmit\" value=\"Register\" />\n          </div>  \n          <input type=\"hidden\" name=\"formName\" value=\"register\">    \n        </form>\n      </div>\n    </div>\n  </div>\n</div>",
 			"file": "app/Views/site/default/layouts/login.php",
+			"file_size": 1987,
+			"file_write_time": 131965332186089171,
 			"settings":
 			{
-				"buffer_size": 1693,
+				"buffer_size": 1947,
+				"encoding": "UTF-8",
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "app/Views/site/default/layouts/message.php",
+			"settings":
+			{
+				"buffer_size": 333,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
@@ -89,7 +120,7 @@
 			"file": "app/lang/site/default/ru_RU.php",
 			"settings":
 			{
-				"buffer_size": 456,
+				"buffer_size": 682,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
@@ -98,7 +129,7 @@
 			"file": "app/Lib/functions.php",
 			"settings":
 			{
-				"buffer_size": 425,
+				"buffer_size": 659,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
 			}
@@ -134,9 +165,18 @@
 			"file": "public/index.php",
 			"settings":
 			{
-				"buffer_size": 605,
+				"buffer_size": 602,
 				"encoding": "UTF-8",
 				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "app/Lib/gump/gump.class.php",
+			"settings":
+			{
+				"buffer_size": 72482,
+				"encoding": "UTF-8",
+				"line_ending": "Unix"
 			}
 		}
 	],
@@ -175,8 +215,8 @@
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/lang",
-		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/lang/site",
-		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/lang/site/default",
+		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Lib",
+		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Models",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default",
@@ -184,6 +224,10 @@
 	],
 	"file_history":
 	[
+		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP1/functions.php",
+		"/C/Soft/VertrigoServ_php7_1/www/liteshop/lib/lite_shop.php",
+		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Models/BaseModel.php",
+		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default/layouts/message.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default/layouts/header.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default/layouts/404.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/lang/L10n.php",
@@ -194,7 +238,6 @@
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default/layouts/footer.php",
 		"/C/Soft/VertrigoServ_php7_1/www/langguard_platform/public/index.php",
 		"/C/Soft/VertrigoServ_php7_1/www/liteshop/index.php",
-		"/C/Soft/VertrigoServ_php7_1/www/liteshop/lib/lite_shop.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/public/assets/default",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/login.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/admin/default/layouts/index.php",
@@ -204,7 +247,6 @@
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default/start.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/default/index.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Lib/Config.php",
-		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Models/BaseModel.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Controllers/AjaxController.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/ajax.php",
 		"/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP2/app/Views/site/404.php",
@@ -219,7 +261,7 @@
 	],
 	"find":
 	{
-		"height": 84.0
+		"height": 64.0
 	},
 	"find_in_files":
 	{
@@ -234,6 +276,7 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"validate",
 			"i10n",
 			"Ajax",
 			"test Ajax"
@@ -255,7 +298,7 @@
 	"groups":
 	[
 		{
-			"selected": 4,
+			"selected": 0,
 			"sheets":
 			[
 				{
@@ -264,15 +307,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 8078,
+						"buffer_size": 10047,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								266,
-								266
+								1511,
+								1511
 							]
 						],
 						"settings":
@@ -280,6 +323,9 @@
 							"SL.15.region_keys":
 							[
 								"sublime_linter.protected_regions"
+							],
+							"SL.17.region_keys":
+							[
 							],
 							"SL.20.region_keys":
 							[
@@ -293,113 +339,10 @@
 							{
 								"close":
 								{
-								},
-								"icon":
-								{
-								},
-								"open":
-								{
-								},
-								"unmatched":
-								{
-								}
-							},
-							"bracket_highlighter.clone_regions":
-							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
-								"bh_unmatched",
-								"bh_unmatched_center",
-								"bh_unmatched_open",
-								"bh_unmatched_close",
-								"bh_unmatched_content"
-							],
-							"bracket_highlighter.locations":
-							{
-								"close":
-								{
-								},
-								"icon":
-								{
-								},
-								"open":
-								{
-								},
-								"unmatched":
-								{
-								}
-							},
-							"bracket_highlighter.regions":
-							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
-								"bh_unmatched",
-								"bh_unmatched_center",
-								"bh_unmatched_open",
-								"bh_unmatched_close",
-								"bh_unmatched_content"
-							],
-							"bs_sintax": "php",
-							"buffer_scroll_name": "169426e4",
-							"spell_check": true,
-							"syntax": "Packages/PHP/PHP.sublime-syntax",
-							"tab_size": 2,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 5,
-					"type": "text"
-				},
-				{
-					"buffer": 1,
-					"file": "app/Controllers/BaseController.php",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 943,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								706,
-								717
-							]
-						],
-						"settings":
-						{
-							"SL.16.region_keys":
-							[
-								"sublime_linter.protected_regions"
-							],
-							"SL.17.region_keys":
-							[
-								"sublime_linter.protected_regions"
-							],
-							"SL.31.region_keys":
-							[
-								"sublime_linter.protected_regions"
-							],
-							"bracket_highlighter.busy": false,
-							"bracket_highlighter.clone": -1,
-							"bracket_highlighter.clone_locations":
-							{
-								"close":
-								{
 									"1":
 									[
-										500,
-										501
+										1514,
+										1515
 									]
 								},
 								"icon":
@@ -414,8 +357,8 @@
 								{
 									"1":
 									[
-										483,
-										484
+										1478,
+										1479
 									]
 								},
 								"unmatched":
@@ -441,8 +384,8 @@
 								{
 									"1":
 									[
-										717,
-										718
+										1511,
+										1512
 									]
 								},
 								"icon":
@@ -457,8 +400,145 @@
 								{
 									"1":
 									[
-										700,
-										701
+										1501,
+										1502
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bs_sintax": "php",
+							"buffer_scroll_name": "169426e4",
+							"spell_check": true,
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2340.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "app/Controllers/BaseController.php",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3345,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1743,
+								1743
+							]
+						],
+						"settings":
+						{
+							"SL.16.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"SL.17.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"SL.18.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"SL.31.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.clone": -1,
+							"bracket_highlighter.clone_locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										3128,
+										3129
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										2695,
+										2696
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										1761,
+										1762
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										1579,
+										1580
 									]
 								},
 								"unmatched":
@@ -481,17 +561,255 @@
 							"bs_sintax": "php",
 							"buffer_scroll_name": "80aa634e",
 							"spell_check": true,
-							"syntax": "Packages/PHP/PHP.sublime-syntax"
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 468.0,
+						"translation.y": 2829.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 11,
+					"stack_index": 2,
 					"type": "text"
 				},
 				{
 					"buffer": 2,
+					"file": "app/Models/BaseModel.php",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 559,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								423,
+								423
+							]
+						],
+						"settings":
+						{
+							"SL.32.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.clone": -1,
+							"bracket_highlighter.clone_locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
+								},
+								"unmatched":
+								{
+									"1":
+									[
+										431,
+										432
+									]
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										426,
+										427
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										387,
+										388
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bs_sintax": "php",
+							"buffer_scroll_name": "a89f7c41",
+							"spell_check": true,
+							"syntax": "Packages/PHP/PHP.sublime-syntax"
+						},
+						"translation.x": 0.0,
+						"translation.y": 364.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "/C/Soft/VertrigoServ_php7_1/www/loftschool/LS_php2019_VP1/models.php",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2456,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								518,
+								423
+							]
+						],
+						"settings":
+						{
+							"SL.34.region_keys":
+							[
+							],
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.clone": -1,
+							"bracket_highlighter.clone_locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										1976,
+										1977
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										47,
+										48
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										1976,
+										1977
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										47,
+										48
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bs_sintax": "php",
+							"buffer_scroll_name": "9b74fe98",
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
 					"file": "app/Controllers/UserController.php",
 					"semi_transient": false,
 					"settings":
@@ -615,29 +933,33 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 12,
+					"stack_index": 9,
 					"type": "text"
 				},
 				{
-					"buffer": 3,
+					"buffer": 5,
 					"file": "app/Views/site/default/start.php",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 653,
+						"buffer_size": 762,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								85,
-								85
+								732,
+								732
 							]
 						],
 						"settings":
 						{
 							"SL.18.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"SL.19.region_keys":
 							[
 							],
 							"SL.32.region_keys":
@@ -650,38 +972,10 @@
 							{
 								"close":
 								{
-								},
-								"icon":
-								{
-								},
-								"open":
-								{
-								},
-								"unmatched":
-								{
-								}
-							},
-							"bracket_highlighter.clone_regions":
-							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
-								"bh_unmatched",
-								"bh_unmatched_center",
-								"bh_unmatched_open",
-								"bh_unmatched_close",
-								"bh_unmatched_content"
-							],
-							"bracket_highlighter.locations":
-							{
-								"close":
-								{
 									"1":
 									[
-										85,
-										86
+										366,
+										367
 									]
 								},
 								"icon":
@@ -696,9 +990,37 @@
 								{
 									"1":
 									[
-										80,
-										81
+										338,
+										339
 									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
 								},
 								"unmatched":
 								{
@@ -706,49 +1028,55 @@
 							},
 							"bracket_highlighter.regions":
 							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
 								"bh_unmatched",
 								"bh_unmatched_center",
 								"bh_unmatched_open",
 								"bh_unmatched_close",
-								"bh_unmatched_content"
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
 							],
 							"bs_sintax": "php",
 							"buffer_scroll_name": "9d841d7c",
 							"spell_check": true,
-							"syntax": "Packages/PHP/PHP.sublime-syntax"
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 156.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 9,
+					"stack_index": 7,
 					"type": "text"
 				},
 				{
-					"buffer": 4,
+					"buffer": 6,
 					"file": "app/Views/site/default/layouts/login.php",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 1693,
+						"buffer_size": 1947,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								85,
-								85
+								146,
+								146
 							]
 						],
 						"settings":
 						{
 							"SL.19.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"SL.20.region_keys":
 							[
 								"sublime_linter.protected_regions"
 							],
@@ -774,16 +1102,16 @@
 							},
 							"bracket_highlighter.clone_regions":
 							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
 								"bh_unmatched",
 								"bh_unmatched_center",
 								"bh_unmatched_open",
 								"bh_unmatched_close",
-								"bh_unmatched_content"
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
 							],
 							"bracket_highlighter.locations":
 							{
@@ -791,8 +1119,8 @@
 								{
 									"1":
 									[
-										1667,
-										1670
+										147,
+										148
 									]
 								},
 								"icon":
@@ -807,8 +1135,8 @@
 								{
 									"1":
 									[
-										85,
-										88
+										54,
+										55
 									]
 								},
 								"unmatched":
@@ -817,31 +1145,126 @@
 							},
 							"bracket_highlighter.regions":
 							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
 								"bh_unmatched",
 								"bh_unmatched_center",
 								"bh_unmatched_open",
 								"bh_unmatched_close",
-								"bh_unmatched_content"
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
 							],
 							"bs_sintax": "php",
 							"buffer_scroll_name": "51025fa1",
 							"open_with_edit": true,
+							"spell_check": true,
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "app/Views/site/default/layouts/message.php",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 333,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								295,
+								295
+							]
+						],
+						"settings":
+						{
+							"SL.31.region_keys":
+							[
+							],
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.clone": 31,
+							"bracket_highlighter.clone_locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bs_sintax": "php",
+							"buffer_scroll_name": "78fff4fc",
+							"spell_check": true,
 							"syntax": "Packages/PHP/PHP.sublime-syntax"
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 0,
+					"stack_index": 8,
 					"type": "text"
 				},
 				{
-					"buffer": 5,
+					"buffer": 8,
 					"file": "app/Views/site/default/layouts/homepage.php",
 					"semi_transient": false,
 					"settings":
@@ -853,13 +1276,16 @@
 						"selection":
 						[
 							[
-								32,
-								0
+								30,
+								30
 							]
 						],
 						"settings":
 						{
 							"SL.20.region_keys":
+							[
+							],
+							"SL.21.region_keys":
 							[
 							],
 							"SL.47.region_keys":
@@ -901,8 +1327,8 @@
 								{
 									"1":
 									[
-										477,
-										480
+										30,
+										31
 									]
 								},
 								"icon":
@@ -917,8 +1343,8 @@
 								{
 									"1":
 									[
-										1,
-										4
+										11,
+										12
 									]
 								},
 								"unmatched":
@@ -927,16 +1353,16 @@
 							},
 							"bracket_highlighter.regions":
 							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
 								"bh_unmatched",
 								"bh_unmatched_center",
 								"bh_unmatched_open",
 								"bh_unmatched_close",
-								"bh_unmatched_content"
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
 							],
 							"bs_sintax": "php",
 							"buffer_scroll_name": "57a7a89c",
@@ -950,17 +1376,17 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 4,
+					"stack_index": 10,
 					"type": "text"
 				}
 			]
 		},
 		{
-			"selected": 0,
+			"selected": 1,
 			"sheets":
 			[
 				{
-					"buffer": 6,
+					"buffer": 9,
 					"file": "public/assets/site/default/css/stylesOverride.css",
 					"semi_transient": false,
 					"settings":
@@ -978,6 +1404,9 @@
 						],
 						"settings":
 						{
+							"SL.21.region_keys":
+							[
+							],
 							"SL.22.region_keys":
 							[
 							],
@@ -1061,49 +1490,54 @@
 							},
 							"bracket_highlighter.regions":
 							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
 								"bh_unmatched",
 								"bh_unmatched_center",
 								"bh_unmatched_open",
 								"bh_unmatched_close",
-								"bh_unmatched_content"
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
 							],
 							"bs_sintax": "css",
 							"buffer_scroll_name": "6f73f94b",
 							"open_with_edit": true,
 							"spell_check": true,
-							"syntax": "Packages/CSS/CSS.sublime-syntax"
+							"syntax": "Packages/CSS/CSS.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 1,
+					"stack_index": 14,
 					"type": "text"
 				},
 				{
-					"buffer": 7,
+					"buffer": 10,
 					"file": "app/lang/site/default/ru_RU.php",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 456,
+						"buffer_size": 682,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								153,
-								164
+								353,
+								368
 							]
 						],
 						"settings":
 						{
+							"SL.22.region_keys":
+							[
+							],
 							"SL.23.region_keys":
 							[
 								"sublime_linter.protected_regions"
@@ -1120,8 +1554,8 @@
 								{
 									"1":
 									[
-										164,
-										165
+										111,
+										112
 									]
 								},
 								"icon":
@@ -1136,123 +1570,9 @@
 								{
 									"1":
 									[
-										152,
-										153
+										85,
+										86
 									]
-								},
-								"unmatched":
-								{
-								}
-							},
-							"bracket_highlighter.clone_regions":
-							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
-								"bh_unmatched",
-								"bh_unmatched_center",
-								"bh_unmatched_open",
-								"bh_unmatched_close",
-								"bh_unmatched_content"
-							],
-							"bracket_highlighter.locations":
-							{
-								"close":
-								{
-									"1":
-									[
-										164,
-										165
-									]
-								},
-								"icon":
-								{
-									"1":
-									[
-										"Packages/BracketHighlighter/icons/curly_bracket.png",
-										"region.orangish brackethighlighter.default"
-									]
-								},
-								"open":
-								{
-									"1":
-									[
-										152,
-										153
-									]
-								},
-								"unmatched":
-								{
-								}
-							},
-							"bracket_highlighter.regions":
-							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
-								"bh_unmatched",
-								"bh_unmatched_center",
-								"bh_unmatched_open",
-								"bh_unmatched_close",
-								"bh_unmatched_content"
-							],
-							"bs_sintax": "php",
-							"buffer_scroll_name": "127cfb53",
-							"open_with_edit": true,
-							"spell_check": true,
-							"syntax": "Packages/PHP/PHP.sublime-syntax"
-						},
-						"translation.x": 0.0,
-						"translation.y": 156.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"type": "text"
-				},
-				{
-					"buffer": 8,
-					"file": "app/Lib/functions.php",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 425,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								425,
-								425
-							]
-						],
-						"settings":
-						{
-							"SL.20.region_keys":
-							[
-							],
-							"SL.21.region_keys":
-							[
-							],
-							"SL.24.region_keys":
-							[
-							],
-							"bracket_highlighter.busy": false,
-							"bracket_highlighter.clone": -1,
-							"bracket_highlighter.clone_locations":
-							{
-								"close":
-								{
-								},
-								"icon":
-								{
-								},
-								"open":
-								{
 								},
 								"unmatched":
 								{
@@ -1275,12 +1595,159 @@
 							{
 								"close":
 								{
+									"1":
+									[
+										368,
+										369
+									]
 								},
 								"icon":
 								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
 								},
 								"open":
 								{
+									"1":
+									[
+										352,
+										353
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bs_sintax": "php",
+							"buffer_scroll_name": "127cfb53",
+							"open_with_edit": true,
+							"spell_check": true,
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 468.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 11,
+					"file": "app/Lib/functions.php",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 659,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								530,
+								547
+							]
+						],
+						"settings":
+						{
+							"SL.20.region_keys":
+							[
+							],
+							"SL.21.region_keys":
+							[
+							],
+							"SL.24.region_keys":
+							[
+								"sublime_linter.protected_regions"
+							],
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.clone": -1,
+							"bracket_highlighter.clone_locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										564,
+										565
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										559,
+										560
+									]
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+									"1":
+									[
+										557,
+										558
+									]
+								},
+								"icon":
+								{
+									"1":
+									[
+										"Packages/BracketHighlighter/icons/curly_bracket.png",
+										"region.orangish brackethighlighter.default"
+									]
+								},
+								"open":
+								{
+									"1":
+									[
+										547,
+										548
+									]
 								},
 								"unmatched":
 								{
@@ -1306,14 +1773,14 @@
 							"syntax": "Packages/PHP/PHP.sublime-syntax"
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 936.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 7,
+					"stack_index": 6,
 					"type": "text"
 				},
 				{
-					"buffer": 9,
+					"buffer": 12,
 					"file": "app/Lib/AppConfig.php",
 					"semi_transient": false,
 					"settings":
@@ -1440,11 +1907,11 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 8,
+					"stack_index": 16,
 					"type": "text"
 				},
 				{
-					"buffer": 10,
+					"buffer": 13,
 					"file": "app/Lib/Router.php",
 					"semi_transient": false,
 					"settings":
@@ -1573,17 +2040,19 @@
 							"buffer_scroll_name": "6cacfad7",
 							"open_with_edit": true,
 							"spell_check": true,
-							"syntax": "Packages/PHP/PHP.sublime-syntax"
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 3276.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 6,
+					"stack_index": 15,
 					"type": "text"
 				},
 				{
-					"buffer": 11,
+					"buffer": 14,
 					"file": "app/routes.php",
 					"semi_transient": false,
 					"settings":
@@ -1595,8 +2064,8 @@
 						"selection":
 						[
 							[
-								462,
-								466
+								116,
+								116
 							]
 						],
 						"settings":
@@ -1611,6 +2080,12 @@
 							[
 							],
 							"SL.25.region_keys":
+							[
+							],
+							"SL.26.region_keys":
+							[
+							],
+							"SL.27.region_keys":
 							[
 							],
 							"SL.30.region_keys":
@@ -1668,8 +2143,8 @@
 								{
 									"1":
 									[
-										466,
-										467
+										119,
+										120
 									]
 								},
 								"icon":
@@ -1684,8 +2159,8 @@
 								{
 									"1":
 									[
-										460,
-										461
+										25,
+										26
 									]
 								},
 								"unmatched":
@@ -1694,45 +2169,47 @@
 							},
 							"bracket_highlighter.regions":
 							[
-								"bh_default",
-								"bh_default_center",
-								"bh_default_open",
-								"bh_default_close",
-								"bh_default_content",
 								"bh_unmatched",
 								"bh_unmatched_center",
 								"bh_unmatched_open",
 								"bh_unmatched_close",
-								"bh_unmatched_content"
+								"bh_unmatched_content",
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content"
 							],
 							"bs_sintax": "php",
 							"buffer_scroll_name": "81bf16f8",
 							"open_with_edit": true,
 							"spell_check": true,
-							"syntax": "Packages/PHP/PHP.sublime-syntax"
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 1092.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 2,
+					"stack_index": 12,
 					"type": "text"
 				},
 				{
-					"buffer": 12,
+					"buffer": 15,
 					"file": "public/index.php",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 605,
+						"buffer_size": 602,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								490,
-								498
+								597,
+								597
 							]
 						],
 						"settings":
@@ -1752,6 +2229,9 @@
 								"sublime_linter.protected_regions"
 							],
 							"SL.25.region_keys":
+							[
+							],
+							"SL.27.region_keys":
 							[
 							],
 							"SL.28.region_keys":
@@ -1793,8 +2273,8 @@
 								{
 									"1":
 									[
-										498,
-										499
+										598,
+										599
 									]
 								},
 								"icon":
@@ -1809,8 +2289,8 @@
 								{
 									"1":
 									[
-										489,
-										490
+										597,
+										598
 									]
 								},
 								"unmatched":
@@ -1837,10 +2317,118 @@
 							"syntax": "Packages/PHP/PHP.sublime-syntax"
 						},
 						"translation.x": 0.0,
-						"translation.y": 312.0,
+						"translation.y": 780.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 10,
+					"stack_index": 13,
+					"type": "text"
+				},
+				{
+					"buffer": 16,
+					"file": "app/Lib/gump/gump.class.php",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 72482,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								70536,
+								70557
+							]
+						],
+						"settings":
+						{
+							"SL.18.region_keys":
+							[
+							],
+							"SL.29.region_keys":
+							[
+							],
+							"SL.30.region_keys":
+							[
+							],
+							"SL.31.region_keys":
+							[
+							],
+							"bracket_highlighter.busy": false,
+							"bracket_highlighter.clone": 18,
+							"bracket_highlighter.clone_locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
+								},
+								"unmatched":
+								{
+									"1":
+									[
+										72480,
+										72481
+									]
+								}
+							},
+							"bracket_highlighter.clone_regions":
+							[
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content"
+							],
+							"bracket_highlighter.locations":
+							{
+								"close":
+								{
+								},
+								"icon":
+								{
+								},
+								"open":
+								{
+								},
+								"unmatched":
+								{
+								}
+							},
+							"bracket_highlighter.regions":
+							[
+								"bh_default",
+								"bh_default_center",
+								"bh_default_open",
+								"bh_default_close",
+								"bh_default_content",
+								"bh_unmatched",
+								"bh_unmatched_center",
+								"bh_unmatched_open",
+								"bh_unmatched_close",
+								"bh_unmatched_content"
+							],
+							"bs_sintax": "php",
+							"buffer_scroll_name": "8f94a1c7",
+							"spell_check": true,
+							"syntax": "Packages/PHP/PHP.sublime-syntax",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 139280.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 11,
 					"type": "text"
 				}
 			]
@@ -1879,7 +2467,7 @@
 		"rows":
 		[
 			0.0,
-			0.912795793164,
+			0.956178790535,
 			1.0
 		]
 	},
@@ -1900,7 +2488,7 @@
 	"project": "vp2.sublime-project",
 	"replace":
 	{
-		"height": 155.0
+		"height": 122.0
 	},
 	"save_all_on_build": true,
 	"select_file":

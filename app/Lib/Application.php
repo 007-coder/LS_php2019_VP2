@@ -41,14 +41,16 @@ class Application
     $this->loadInterfaceLang($this->interfaceLang);
 
     $this->db();
-    $this->validator = new GUMP();
+    $this->validator = new GUMP(getLangCodeISO($this->interfaceLang));
   }
 
-  public function runApp() 
+  public function run() 
   {   
     $routeData = $this->router->start();
    
     $this->area = $this->router->getRouteArea();
+
+    wrap_pre($this->user, __METHOD__.'$this->user'); 
 
     $method = $routeData['method'];    
     if ($routeData['controller'] == 'BaseController') {
@@ -162,9 +164,10 @@ class Application
 
   protected function redirect($where, $statusCode = '303')
   {
-    header('Location: ' . $url, true, $statusCode);
+    
+    /*header('Location: ' . $url, true, $statusCode);
 
-    exit();
+    exit();*/
     // url@ route@ name@    
   }
 
@@ -180,7 +183,7 @@ class Application
     return $languages[$area]['availableLangs'];
   }  
 
-  protected function validate($data, $params) {
+  protected function validate($data, $params, $filterPostKeys = []) {
     $return  = [
       'allValid'=>false,
       'errors'=>[
@@ -189,13 +192,21 @@ class Application
       ],
       'validatedData'=>[]
     ];
+   
+    if (count($filterPostKeys)) {
+      $dataAfterFilter =[];
+      foreach ($data as $kp => $postData) {
+        if (in_array($kp, $filterPostKeys)) {
+          $dataAfterFilter[$kp] = $postData;
+        } 
+      }  
+    }
 
-    $validationRules = $params['validationRules'];
-    $filterRules = $params['filterRules'];
+    $dataForValidation = (count($filterPostKeys)) ? $dataAfterFilter : $data;
 
-    $this->validator->validation_rules($validationRules); 
-    $this->validator->filter_rules($filterRules);
-    $validatedData = $this->validator->run($data);  
+    $this->validator->validation_rules($params['validationRules']); 
+    $this->validator->filter_rules($params['filterRules']);
+    $validatedData = $this->validator->run($dataForValidation);  
 
     // Валидация провалена
     if($validatedData === false)
@@ -215,9 +226,25 @@ class Application
         $return['validatedData'] = $validatedData;
     }
 
-
     return $return;
 
+  }
+
+  protected function setUser($userData)
+  {
+    $_SESSION['user'] = [
+      'id' => $userData['id'],
+      'data' => [
+        'id' => $userData['id'],
+        'email' => $userData['email'],
+        'publish' => $userData['publish'],
+        'age' => $userData['age'],
+        'name' => $userData['name'],
+        'dateRegistered' => $userData['dateRegistered']
+      ]
+    ];
+
+    $this->user = $_SESSION['user'];
   }
 
   protected function render($page, $data = [], $ajax = false, $area = 'site') 
@@ -294,7 +321,7 @@ class Application
         'type'=>'', // error | ok
         'text'=>''
       ];
-      $this->viewData['formErrors'] = [];
+      $this->viewData['formValidationResults'] = [];
       $this->viewData['page'] = ($page !='') ? $page : 'homepage';
       $this->viewData['templateDir'] = self::TEMPLATE_DIR . DS . $area . DS . $templateArea;
       // ----------------------

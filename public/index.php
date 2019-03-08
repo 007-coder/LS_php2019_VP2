@@ -16,5 +16,5 @@ define('LANG_DIR', APP_DIR.DS.'lang');
 require(LIB_DIR.DS.'Application.php');
 
 $app = new Application();
-$app->runApp();
+$app->run();
 
